@@ -5,8 +5,9 @@
 import os
 import argparse #コマンドライン引数を扱えるようにするやつのインポート
 import glob     #ディレクトリ内の一覧を取得してくるやつのインポート
+from PIL import Image, ImageFilter #JPEGのExif用
 from PIL.ExifTags import TAGS
-from PIL import Image, ImageFilter
+import png #Pngチャンク用
 import sqlite3
 # パーサー オブジェクトを作成する
 parser = argparse.ArgumentParser(description= "ExifToSQL")
@@ -28,71 +29,83 @@ for root, dirs, files in os.walk(dir_path):
             file_path = os.path.join(root, file)
             image_files.append(file_path)
 
-# 画像ファイルの数を確認する
+# 指定されたディレクトリ内に画像ファイルが存在するかどうかを確認し、存在しない場合はプログラムを終了
 if len(image_files) == 0:
     print("指定されたディレクトリ内にJPEGまたはPNGの画像ファイルが見つかりません。")
     exit()
 
-# メタデータを取得する
-    for file_path in image_files:
-    # ファイルの拡張子を取得する
-        _, ext = os.path.splitext(file_path)
-
-        # JPEGとPNGのメタデータを取得する
-        file_info = {}
-        if ext == ".jpg" or ext == ".jpeg":
-        # JPEGの場合、PILモジュールを使ってExif情報を取得する
+# Exifを取得する
+for file_path in image_files:
+    file_info = {}
+    if ext == ".jpg" or ext == ".jpeg":
+    # JPEGの場合、PILモジュールを使ってExif情報を取得する
             with Image.open(file_path) as img:
                 exif = img.getexif()
-        if exif:
+    if exif:
             file_info["jpeg_exif"] = exif
         
-        # PNGの場合pngフォーマットの情報を取得する
-        elif ext == ".png":
-            # PNGファイルをバイナリとして読み込む
-            with open(file_path, "rb") as f:
-                # 最初の8バイトはPNGの署名
-                png_signature = f.read(8)
+        # PNGの場合、pngモジュールを使ってPNGのチャンクを取得する
+    elif ext == ".png":
+                # PNGファイルをバイナリとして読み込む
+                with open(file_path, "rb") as f:
+                    # png.Readerクラスを使って、PNGファイルを読み込む
+                    png_reader = png.Reader(file=f)
+                # png.Readerクラスのchunks()メソッドで、PNGのチャンクを取得する
+                chunks = png_reader.chunks()
 
-            # 残りの部分は、1つ以上のチャンク
-            chunks = []
-            while True:
-                # チャンク長を取得
-                chunk_length_bytes = f.read(4)
-                # チャンク長が0の場合、これ以降のチャンクは存在しない
-                if chunk_length_bytes == b"\x00\x00\x00\x00":
-                    break
-                # チャンク長を32ビット符号付き整数として解釈する
-                chunk_length = int.from_bytes(chunk_length_bytes, "big")
+                # 取得したチャンクを辞書に追加する
+                file_info["png_chunks"] = list(chunks)
 
-                # チャンク長分のデータを取得する
-                chunk_data = f.read(chunk_length)
-
-                # チャンク長を辞書に追加する
-                chunks.append({"length": chunk_length, "data": chunk_data})
-
-                # PNGフォーマットの情報をまとめる
-                png_info = {"signature": png_signature, "chunks": chunks}
+    # PNGフォーマットの情報をまとめる
+                png_info = {"chunks": chunks}
                 file_info["png_info"] = png_info
 
 
-                # SQLiteデータベースに接続
-                conn = sqlite3.connect("/SQLTest.db")
-                # メタデータをSQLiteデータベースに登録する
-                with conn:
-                # テーブルが存在しない場合は作成する
+    # SQLiteデータベースに接続
+    try:
+        conn = sqlite3.connect("H:/Git/PnginfoPromptSQL/sql_test.db")
+    except sqlite3.Error as e:
+            print("データベースに接続できませんでした。")
+            print(e)
+            exit()
+
+    # メタデータをSQLiteデータベースに登録する
+    with conn:
+            # sd_pnginfoテーブルが存在するかどうかを取得する
+                cursor = conn.execute("""
+                    SELECT name
+                    FROM sqlite_master
+                    WHERE type = 'table' AND name = 'sd_pnginfo'
+                """)
+                # sd_pnginfoテーブルが存在しない場合
+                if not cursor.fetchone():
+                    # sd_pnginfoテーブルを作成する
                     conn.execute("""
-                    CREATE TABLE IF NOT EXISTS image_metadata (
-                    ile_path TEXT PRIMARY KEY,
-                    file_info TEXT
+                    CREATE TABLE sd_pnginfo (
+                        file_path TEXT PRIMARY KEY,
+                        file_info TEXT
                     )
                     """)
 
-                    # メタデータをINSERT文で登録する
+                # テーブルが存在しない場合は作成する
+                try:
                     conn.execute("""
-                    INSERT OR REPLACE INTO image_metadata (file_path, file_info)
+                        CREATE TABLE sd_pnginfo (
+                            file_path TEXT PRIMARY KEY,
+                            file_info TEXT
+                        )
+                    """)
+                except sqlite3.Error as e:
+                    print("テーブルの作成に失敗しました。")
+                    print(e)
+                    exit()
+
+
+            # メタデータをINSERT文で登録する
+                conn.execute("""
+                    INSERT OR REPLACE INTO sd_pnginfo (file_path, file_info)
                     VALUES (?, ?)
                     """, (file_path, str(file_info)))
 
-                    # SQLiteデータベースへの接続を閉じる
-                    conn.close()
+# SQLiteデータベースへの接続を閉じる
+conn.close()
