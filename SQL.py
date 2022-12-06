@@ -33,9 +33,6 @@ if len(image_files) == 0:
     print("指定されたディレクトリ内にJPEGまたはPNGの画像ファイルが見つかりません。")
     exit()
 
-# メタデータを取得
-for file_path in image_files:
-
 # メタデータを取得する
     for file_path in image_files:
     # ファイルの拡張子を取得する
@@ -79,23 +76,23 @@ for file_path in image_files:
                 file_info["png_info"] = png_info
 
 
-# SQLiteデータベースに接続
-conn = sqlite3.connect("H:\Git\Sundbox\SQLTest.db")
-# メタデータをSQLiteデータベースに登録する
-with conn:
-    # テーブルが存在しない場合は作成する
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS image_metadata (
-            file_path TEXT PRIMARY KEY,
-            file_info TEXT
-        )
-    """)
+                # SQLiteデータベースに接続
+                conn = sqlite3.connect("/SQLTest.db")
+                # メタデータをSQLiteデータベースに登録する
+                with conn:
+                # テーブルが存在しない場合は作成する
+                    conn.execute("""
+                    CREATE TABLE IF NOT EXISTS image_metadata (
+                    ile_path TEXT PRIMARY KEY,
+                    file_info TEXT
+                    )
+                    """)
 
-    # メタデータをINSERT文で登録する
-    conn.execute("""
-        INSERT OR REPLACE INTO image_metadata (file_path, file_info)
-        VALUES (?, ?)
-    """, (file_path, str(file_info)))
+                    # メタデータをINSERT文で登録する
+                    conn.execute("""
+                    INSERT OR REPLACE INTO image_metadata (file_path, file_info)
+                    VALUES (?, ?)
+                    """, (file_path, str(file_info)))
 
-# SQLiteデータベースへの接続を閉じる
-conn.close()
+                    # SQLiteデータベースへの接続を閉じる
+                    conn.close()
