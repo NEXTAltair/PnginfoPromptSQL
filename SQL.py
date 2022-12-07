@@ -53,24 +53,31 @@ for root, dirs, files in os.walk(dir_path):
         print("指定されたディレクトリ内にJPEGまたはPNGの画像ファイルが見つかりません。")
         exit()
 
-                # メタデータを取得する
-        for file_path in image_files:
-            file_info = {}
-                # JPEGの場合、PILモジュールを使ってExif情報を取得する
-            if ext == ".jpg" or ext == ".jpeg":
+    
+    # メタデータを取得する
+    for file_path in image_files:
+        file_info = {}
+        # JPEGの場合、PILモジュールを使ってExif情報を取得する
+        if ext == ".jpg" or ext == ".jpeg":
+            # 関数を定義
+            def get_exif(file_path):
                 with Image.open(file_path) as img:
-                        exif = img.getexif()
-                if exif:
-                        file_info["jpeg_exif"] = exif
-        
-                # PNGの場合、pngモジュールを使ってPNGのチャンクを取得する
-                elif ext == ".png":
-                        # png.Readerクラスを使って、PNGファイルを読み込む
-                        png_reader = png.Reader(file=file_path)
-                    # png.Readerクラスのchunks()メソッドで、PNGのチャンクを取得する
-                chunks = png_reader.chunks()
-                    # 取得したチャンクを辞書に追加する
-                file_info["png_chunks"] = list(chunks)
+                    exif = img.getexif()
+                return exif
+            # 関数を呼び出す
+            exif = get_exif(file_path)
+            if exif:
+                file_info["jpeg_exif"] = exif
+
+        # PNGの場合、pngモジュールを使ってPNGのチャンクを取得する
+        elif ext == ".png":
+            # png.Readerクラスを使って、PNGファイルを読み込む
+            png_reader = png.Reader(file=file_path)
+            # png.Readerクラスのchunks()メソッドで、PNGのチャンクを取得する
+            chunks = png_reader.chunks()
+            # 取得したチャンクを辞書に追加する
+            file_info["png_chunks"] = list(chunks)
+
 
         # メタデータをINSERT文で登録する
         conn.execute("""
